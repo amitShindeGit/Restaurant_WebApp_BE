@@ -20,14 +20,14 @@ export class RestaurantsController {
     @Body('location') restaurantLocation: string,
     @Body('averageRating') averageRating: number,
   ) {
-    const generatedId = this.restaurantService.insertRestaurant(
+    return this.restaurantService.insertRestaurant(
       restaurantTitle,
       restaurantDescription,
       restaurantLocation,
       averageRating,
     );
 
-    return { id: generatedId };
+    // return { id: generatedId };
   }
 
   @Get()
@@ -48,21 +48,17 @@ export class RestaurantsController {
     @Body('location') restaurantLocation: string,
     @Body('averageRating') averageRating: number,
   ) {
-    this.restaurantService.updateRestaurant(
+    return this.restaurantService.updateRestaurant(
       restaurantId,
       restaurantTitle,
       restaurantDescription,
       restaurantLocation,
       averageRating,
     );
-
-    return null;
   }
 
   @Delete(':id')
   deleteRestaurant(@Param('id') restaurantId: string) {
-    this.restaurantService.deleteRestaurants(restaurantId);
-
-    return null;
+    return this.restaurantService.deleteRestaurants(restaurantId);
   }
 }
