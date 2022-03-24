@@ -3,7 +3,7 @@ import { BaseEntity, Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 @Entity()
 export class RestaurantEntity extends BaseEntity  {
     @PrimaryGeneratedColumn()
-    id: string;
+    id: number;
 
     @Column({ nullable: false, unique: true })
     title: string;
@@ -14,7 +14,7 @@ export class RestaurantEntity extends BaseEntity  {
     @Column()
     location : string;
 
-    @Column()
+    @Column({ default: 0})
     averageRating : number;
 
     // toJSON(){

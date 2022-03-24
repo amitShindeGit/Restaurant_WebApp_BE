@@ -1,40 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { RestaurantEntity } from 'src/restaurant.entity';
-import { Restaurant } from './restaurant.model';
+import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import { ReviewEntity } from '../review.entity';
+import { RestaurantEntity } from '../restaurant.entity'; //../restaurant.entity  this is correct way
+import { UserEntity } from 'src/users.entity';
+import * as _ from 'lodash';
+import * as moment from 'moment';
+
 
 @Injectable()
 export class RestaurantService {
-  private restaurants: Restaurant[] = [];
-
-  // insertRestaurant(
-  //   title: string,
-  //   description: string,
-  //   location: string,
-  //   averageRating: number,
-  // ) {
-  //   const restaurantId = new Date().toString();
-  //   const newRestaurant = new Restaurant(
-  //     restaurantId,
-  //     title,
-  //     description,
-  //     location,
-  //     averageRating,
-  //   );
-
-  //   this.restaurants.push(newRestaurant);
-  //   return restaurantId;
-  // }
-
-  async insertRestaurant(title, description, location, averageRating) {
-    const restaurantId = new Date().toString();
+  async insertRestaurant(title: string, description: string, location: string) {
     const newRestaurant = new RestaurantEntity();
-    // newRestaurant.id = restaurantId; no need of this since id is auto-increment
     newRestaurant.title = title;
     newRestaurant.description = description;
     newRestaurant.location = location;
-    newRestaurant.averageRating = averageRating;
-
+    // newRestaurant.averageRating = averageRating;
     await newRestaurant.save();
+    // console.log('---------------------', newRestaurant);
     return newRestaurant;
   }
 
@@ -46,31 +27,9 @@ export class RestaurantService {
     return data;
   }
 
-  // getRestaurants() {
-  //   return [...this.restaurants]; //sends copy
-  // }
-
-  async getRestaurantsById(restaurantId: string) {
-    const restaurant = await RestaurantEntity.findOne(restaurantId);
-    return { ...restaurant };
-  }
-
-  // getRestaurantsById(restaurantId: string) {
-  //   const restaurant = this.findRestaurant(restaurantId);
-  //   return { ...restaurant };
-  // }
-
-  async updateRestaurant(
-    restaurantId,
-    title,
-    description,
-    location,
-    averageRating,
-  ) {
+  async updateRestaurant(restaurantId: number, title, description, location) {
     const restaurant = await RestaurantEntity.findOne(restaurantId);
 
-    // const [restaurant, restaurantIndex] = this.findRestaurant(restaurantId);
-    // const updatedRestaurant = { ...restaurant };
     if (title) {
       restaurant.title = title;
     }
@@ -83,66 +42,82 @@ export class RestaurantService {
       restaurant.location = location;
     }
 
-    if (averageRating) {
-      restaurant.averageRating = averageRating;
-    }
-
     await restaurant.save();
-    return { ...restaurant };
-
-    // this.restaurants[restaurantIndex] = updatedRestaurant;
+    return restaurant;
   }
 
-  // updateRestaurant(
-  //   restaurantId: string,
-  //   title: string,
-  //   description: string,
-  //   location: string,
-  //   averageRating: number,
-  // ) {
-  //   const [restaurant, restaurantIndex] = this.findRestaurant(restaurantId);
-  //   const updatedRestaurant = { ...restaurant };
-  //   if (title) {
-  //     updatedRestaurant.title = title;
-  //   }
-
-  //   if (description) {
-  //     updatedRestaurant.description = description;
-  //   }
-
-  //   if (location) {
-  //     updatedRestaurant.location = location;
-  //   }
-
-  //   if (averageRating) {
-  //     updatedRestaurant.averageRating = averageRating;
-  //   }
-
-  //   this.restaurants[restaurantIndex] = updatedRestaurant;
-  // }
-
-  async deleteRestaurants(restaurantId: string) {
+  async deleteRestaurants(restaurantId: number) {
     const restaurant = await RestaurantEntity.findOne(restaurantId);
-    // const restaurantIndex = this.findRestaurant(restaurantId)[1];
     return restaurant.remove();
   }
 
-  // deleteRestaurants(restaurantId: string) {
-  //   const restaurantIndex = this.findRestaurant(restaurantId)[1];
+  async getRestaurantDetails(restaurantId: number) {
+    const restaurant = await RestaurantEntity.findOne(restaurantId);
 
-  //   this.restaurants.splice(restaurantIndex, 1);
-  // }
+    if (restaurant) {
+      const lowestRating = await ReviewEntity.findOne({
+        where: { restaurantId: restaurant.id },
+        order: { rating: 'ASC' },
+      });
 
-  private findRestaurant(id: string): [Restaurant, number] {
-    const restaurantIndex = this.restaurants.findIndex(
-      (restaurant) => restaurant.id === id,
-    );
-    const restaurant = this.restaurants[restaurantIndex];
+      const highestRating = await ReviewEntity.findOne({
+        where: { restaurantId: restaurant.id },
+        order: { rating: 'DESC' },
+      });
 
-    if (!restaurant) {
-      throw new NotFoundException('Could not found any such restaurant!');
+      const latestRating = await ReviewEntity.findOne({
+        where: { restaurantId: restaurant.id },
+        order: { dateOfVisit: 'DESC' },
+      });
+
+      return {
+        restaurant,
+        lowestRating,
+        highestRating,
+        latestRating,
+      };
     }
-
-    return [restaurant, restaurantIndex];
   }
+
+  async addCommentReview(
+    restaurantId: number,
+    { rating, comment },
+    authUser: UserEntity,
+  ) {
+    const restaurant = await RestaurantEntity.findOne(restaurantId);
+
+    if (restaurant) {
+      const existingReview = await ReviewEntity.findOne({
+        where: {
+          restaurantId: restaurantId,
+          userId: authUser.id,
+        },
+      }); //Check once again for usreIds
+
+      if (!existingReview) {
+        const newReview = new ReviewEntity();
+        newReview.name = authUser.name;
+        newReview.rating = rating;
+        newReview.restaurantId = restaurantId;
+        newReview.comment = comment;
+        const randomDay = _.random(0, 10, false);
+        newReview.dateOfVisit = moment()
+          .subtract(randomDay, 'day')
+          .format('YYYY-MM-DD'); //random dates
+        newReview.userId = authUser.id;
+
+        await newReview.save();
+        return newReview;
+      } else {
+        throw new HttpException('Already rated.', 400);
+      }
+    } else {
+      throw new NotFoundException('Restaurant not found!');
+    }
+  }
+
+  // async getRestaurantsById(restaurantId: number) {
+  //   const restaurant = await RestaurantEntity.findOne(restaurantId);
+  //   return restaurant;
+  // }
 }
